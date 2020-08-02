@@ -1,0 +1,75 @@
+/* Query 1 - query used for the first insight */
+SELECT f.title AS film_title, c.name AS category_name, COUNT(*)rental_count
+FROM category c
+JOIN film_category fc
+ON fc.category_id = c.category_id
+JOIN film f
+ON fc.film_id = f.film_id
+JOIN inventory i
+ON i.film_id = f.film_id
+JOIN rental r
+ON r.inventory_id = i.inventory_id
+WHERE name IN ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')
+GROUP BY 1, 2
+ORDER BY 2;
+
+
+/* Query 2 - query used for the second insight */
+WITH t1 AS (
+    SELECT f.title, c.name, f.rental_duration, NTILE(4) OVER (PARTITION BY f.rental_duration) standard_quartile
+    FROM film f
+    JOIN film_category fc
+    ON fc.film_id = f.film_id
+    JOIN category c
+    ON fc.category_id = c.category_id
+    WHERE c.name IN ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')
+    ORDER BY 3, 4)
+/* for visualization */
+SELECT name, SUM(rental_duration) AS sum_rental_duration, SUM(standard_quartile) AS sum_standard_quartile
+FROM t1
+GROUP BY 1
+ORDER BY 1, 2, 3;
+
+
+/* Query 3 - query used for the third insight */
+WITH t1 AS (
+	SELECT DATE_PART('month', r.rental_date) Rental_month, DATE_PART('year', r.rental_date) Rental_year, s.store_id Store_ID, COUNT(*) Count_rentals
+	FROM store s
+ 	JOIN inventory i
+  	ON i.store_id = s.store_id
+  	JOIN rental r
+  	ON r.inventory_id = i.inventory_id
+  	JOIN payment p
+  	ON p.rental_id = r.rental_id
+  	JOIN customer c
+  	ON r.customer_id = c.customer_id
+  	GROUP BY 1, 2, 3
+  	ORDER BY 2, 4 DESC)
+SELECT *
+FROM t1;
+
+
+/* Query 4 - query used for the fourth insight */
+SELECT t1.fullname,
+	DATE_TRUNC('month', t1.payment_date) AS pay_mon,
+   	COUNT(*) AS pay_countpermon,
+    SUM(t1.amount) AS pay_amount
+FROM ( 
+  SELECT CONCAT(first_name,' ',last_name) AS fullname, c.customer_id, p.amount, p.payment_date
+  FROM customer c
+  JOIN payment p
+  ON c.customer_id = p.customer_id
+  JOIN rental r
+  ON r.customer_id = c.customer_id
+  WHERE c.customer_id IN (
+    SELECT c.customer_id
+    FROM customer AS c
+    JOIN payment AS p
+    ON c.customer_id = p.customer_id
+    GROUP BY 1
+    ORDER BY 1)
+  )t1
+WHERE t1.payment_date BETWEEN '2007-01-01' AND '2008-01-01'
+GROUP BY 1, 2
+ORDER BY pay_amount DESC
+LIMIT 10;
